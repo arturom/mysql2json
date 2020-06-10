@@ -1,30 +1,32 @@
 #!/usr/bin/env python 
 
-import argparse
-import json
-import datetime
-import pymysql
+from argparse import ArgumentParser
+from datetime import datetime
+from json import JSONEncoder, dumps
+from pymysql import connect
+from pymysql.cursors import SSDictCursor
+
 
 # Define a class to encode values to a json representation
-class CustomEncoder(json.JSONEncoder):
+class CustomEncoder(JSONEncoder):
    def default(self, obj):
       if isinstance(obj, set):
          return list(obj)
-      if isinstance(obj, datetime.datetime):
+      if isinstance(obj, datetime):
          return obj.isoformat()
-      return json.JSONEncoder.default(self, obj)
+      return JSONEncoder.default(self, obj)
 
 
 # Define the cli flags
-parser = argparse.ArgumentParser()
-parser.add_argument("--host", help="MySQL server host", type=str, default='localhost')
-parser.add_argument("--port", help="server port", type=int, default=3306)
+parser = ArgumentParser()
+parser.add_argument("--host", help="MySQL server host. Default: localhost", type=str, default='localhost')
+parser.add_argument("--port", help="server port. Default: 3306", type=int, default=3306)
 parser.add_argument("--database", help="default database", required=True, type=str)
-parser.add_argument("--query", help="a SQL query", type=str)
-parser.add_argument("--query_file", help="a SQL query file", type=str)
+parser.add_argument("--query", help="an SQL query", type=str)
+parser.add_argument("--query_file", help="an SQL query file", type=str)
 parser.add_argument("--user", help="username", required=True, type=str)
 parser.add_argument("--password", help="password", type=str)
-parser.add_argument("--charset", help="character set", type=str, default='utf8mb4')
+parser.add_argument("--charset", help="character set. Default: utf8mb4", type=str, default='utf8mb4')
 
 # Parse the cli flags
 args = parser.parse_args()
@@ -36,7 +38,7 @@ params = {
    'port': args.port,
    'db': args.database,
    'charset': args.charset,
-   'cursorclass': pymysql.cursors.SSDictCursor
+   'cursorclass': SSDictCursor
 }
 
 # Set the password parameter if one was given
@@ -58,14 +60,17 @@ if args.query:
 if query == None:
    raise ValueError("No query or query_file given")
 
-# Instantiate connection
-connection = pymysql.connect(**params)
 
-# Execute the query and iterate over the results
-with connection.cursor() as cursor:
-   cursor.execute(query)
-   for result in cursor:
-      print(json.dumps(result, cls=CustomEncoder))
+try:
+    # Instantiate connection
+    connection = connect(**params)
 
-# Close the database connection
-connection.close()
+    # Execute the query and iterate over the results
+    with connection.cursor() as cursor:
+       cursor.execute(query)
+       for result in cursor:
+          print(dumps(result, cls=CustomEncoder))
+
+finally:
+    # Close the database connection
+    connection.close()
